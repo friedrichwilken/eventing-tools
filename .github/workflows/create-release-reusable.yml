@@ -1,0 +1,49 @@
+name: create release (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      dry-run:
+        type: boolean
+        required: true
+        default: false
+        description: Setting this to `true` will skip the final step of publishing the release, leaving it as a draft-release. This can be helpful for testing and debugging. Note that the tag and release are still getting generated and the next run of this result in incremented release version. To avoid this, do not forget to delete the resulting release and tag.
+    secrets:
+      BOT_PAT:
+        required: true
+
+jobs:
+  create-version:
+    name: Generate Version Number
+    runs-on: ubuntu-latest
+    outputs:
+      : ${{ steps.gen-version.outputs.RELEASE_ID }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Generate Version Number
+        id: gen-version
+        shell: bash
+        run: |
+          RELEASE_ID=$(bash -c "$(curl -fsSL https://raw.githubusercontent.com/kyma-project/eventing-tools/34bc2dcd84c4b6bcdd496547b891911f3a71a58f/hack/scripts/get-version-from-branch.sh)")
+          echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_OUTPUT
+
+  bump-sec-scanners-config:
+    name: bump the sec-scanners-config.yaml
+    uses: kyma-project/eventing-tools/.github/workflows/bump-sec-scanners-config.yml@main #todo maybe pin this to a commit.
+    with:
+      version_tag: ${{}}
+    secrets:
+      BOT_PAT: ${{}}
+
+  run-unit-test:
+    name: Run Unit Tests
+    uses: kyma-project/eventing-tools/.github/workflows/unit-test-reusable.yml@main
+
+  run-golint-cli:
+    name: Run Golint-cli
+    uses: kyma-project/eventing-tools/.github/workflows/lint-reusable.yml@main
+
+  create-draft-release:
+    name: Create a draft release
